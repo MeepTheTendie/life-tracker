@@ -1,9 +1,7 @@
 import type { LayoutServerLoad } from "./$types";
 
-export const load: LayoutServerLoad = async (event) => {
-  // Simple load function - authentication can be added later
+export const load: LayoutServerLoad = async () => {
   return {
-    isAuthenticated: true,
     user: null,
   };
 };

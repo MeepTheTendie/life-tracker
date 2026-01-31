@@ -1,16 +1,8 @@
 <script lang="ts">
-  import { createConvexClient } from "$lib/convex";
-  import { anyApi } from "convex/server";
   import { Home, TrendingUp, Settings, User } from "lucide-svelte";
   import "../app.css";
 
-  const api = anyApi;
-
-  const { data } = $props();
-  const { isAuthenticated, user } = data;
-
-  // Initialize Convex client
-  const convex = createConvexClient();
+  let { data, children } = $props();
 
   const navItems = [
     { href: "/", icon: Home, label: "Home" },
@@ -24,24 +16,18 @@
   <header class="bg-slate-800 text-white px-4 py-4 sticky top-0 z-50">
     <div class="max-w-2xl mx-auto flex items-center justify-between">
       <h1 class="text-xl font-bold tracking-tight">Life Tracker</h1>
-      {#if isAuthenticated}
-        <div class="flex items-center gap-3">
-          {#if user?.image}
-            <img src={user.image} alt={user.name || "User"} class="w-8 h-8 rounded-full" />
-          {:else}
-            <div class="w-8 h-8 rounded-full bg-rose-400 flex items-center justify-center">
-              <User class="w-5 h-5 text-white" />
-            </div>
-          {/if}
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-full bg-rose-400 flex items-center justify-center">
+          <User class="w-5 h-5 text-white" />
         </div>
-      {/if}
+      </div>
     </div>
   </header>
 
   <!-- Main Content -->
   <main class="px-4 py-6 md:px-8 flex justify-center">
     <div class="max-w-2xl w-full">
-      <slot />
+      {@render children()}
     </div>
   </main>
 
