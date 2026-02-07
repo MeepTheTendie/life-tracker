@@ -1,0 +1,43 @@
+/* Life Tracker - Zen Garden Theme */
+:root {
+	--sand: #f7f5f0;
+	--stone: #e8e4dc;
+	--moss: #8b9d83;
+	--moss-light: #c5d4bd;
+	--bamboo: #6b8e6b;
+	--water: #a8c8c8;
+	--ink: #3a3a3a;
+	--ink-light: #6a6a6a;
+}
+
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+body {
+	font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
+	background: linear-gradient(180deg, var(--sand) 0%, #f0ece4 100%);
+	color: var(--ink);
+	min-height: 100vh;
+	-webkit-font-smoothing: antialiased;
+}
+
+/* Typography */
+h1, h2, h3 {
+	font-family: 'Noto Serif JP', serif;
+}
+
+/* Utility classes */
+.text-center {
+	text-align: center;
+}
+
+.mt-4 {
+	margin-top: 1rem;
+}
+
+.mb-4 {
+	margin-bottom: 1rem;
+}
