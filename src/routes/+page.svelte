@@ -1,28 +1,107 @@
 <script lang="ts">
 	import { Check } from 'lucide-svelte';
+	import { supabase, getLocalUserId } from '$lib/supabase';
+	import { onMount } from 'svelte';
 	
-	let progress = 50;
-	let streak = 12;
+	let streak = $state(0);
 	
-	let habits = [
-		{ id: 'prayer', name: 'Morning Prayer', icon: '🙏', color: '#E8B4B8', category: 'Faith', completed: true },
-		{ id: 'bible', name: 'Bible Reading', icon: '📖', color: '#A8D5BA', category: 'Faith', completed: true },
-		{ id: 'bath', name: 'Daily Bath', icon: '🛁', color: '#F4E3AC', category: 'Health', completed: false }
-	];
+	const today = new Date();
+	const todayStr = today.toISOString().split('T')[0];
+	const dayName = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+	
+	let habits = $state([
+		{ id: 'prayer', name: 'Morning Prayer', icon: '🙏', color: '#8b9d83', category: 'Faith', completed: false },
+		{ id: 'bible', name: 'Bible Reading', icon: '📖', color: '#6b8e6b', category: 'Faith', completed: false },
+		{ id: 'bath', name: 'Daily Bath', icon: '🛁', color: '#a8c8c8', category: 'Health', completed: false }
+	]);
 	
 	let completedCount = $derived(habits.filter(h => h.completed).length);
 	let totalHabits = habits.length;
 	let progressPercent = $derived((completedCount / totalHabits) * 100);
 	
-	let currentVerse = "I can do all things through Christ who strengthens me. - Philippians 4:13";
+	let currentVerse = $state("");
+	let verseRef = $state("");
 	
-	function toggleHabit(id: string) {
-		const habit = habits.find(h => h.id === id);
-		if (habit) {
-			habit.completed = !habit.completed;
-			habits = [...habits];
+	const verses = [
+		{ text: "I can do all things through Christ who strengthens me.", ref: "Philippians 4:13" },
+		{ text: "Commit to the Lord whatever you do, and he will establish your plans.", ref: "Proverbs 16:3" },
+		{ text: "But those who hope in the Lord will renew their strength.", ref: "Isaiah 40:31" },
+		{ text: "Whatever you do, work at it with all your heart.", ref: "Colossians 3:23" },
+		{ text: "The soul of the sluggard craves and gets nothing, while the soul of the diligent is richly supplied.", ref: "Proverbs 13:4" }
+	];
+	
+	function getDailyVerse() {
+		const dayOfYear = Math.floor(today.getTime() / (1000 * 60 * 60 * 24));
+		const verseIndex = dayOfYear % verses.length;
+		currentVerse = verses[verseIndex].text;
+		verseRef = verses[verseIndex].ref;
+	}
+	
+	async function loadData() {
+		const userId = getLocalUserId();
+		getDailyVerse();
+		
+		// Load today's habits
+		const { data: todayEntry } = await supabase
+			.from('habit_entries')
+			.select('*')
+			.eq('user_id', userId)
+			.eq('date', todayStr)
+			.single();
+		
+		if (todayEntry && todayEntry.habit_data) {
+			const savedHabits = JSON.parse(todayEntry.habit_data);
+			habits = savedHabits;
+		}
+		
+		// Load streak
+		const { data: allEntries } = await supabase
+			.from('habit_entries')
+			.select('date')
+			.eq('user_id', userId)
+			.eq('completed', true);
+		
+		if (allEntries) {
+			// Count unique days where all habits were completed
+			const uniqueDays = new Set(allEntries.map(e => e.date));
+			streak = uniqueDays.size;
 		}
 	}
+	
+	async function toggleHabit(id: string) {
+		const userId = getLocalUserId();
+		const habit = habits.find(h => h.id === id);
+		if (!habit) return;
+		
+		habit.completed = !habit.completed;
+		habits = [...habits];
+		
+		const allCompleted = habits.filter(h => h.completed).length === totalHabits;
+		
+		// Save to Supabase
+		await supabase.from('habit_entries').upsert({
+			user_id: userId,
+			date: todayStr,
+			habit_data: JSON.stringify(habits),
+			completed: allCompleted
+		}, { onConflict: 'user_id,date' });
+		
+		// Recalculate streak
+		const { data: allEntries } = await supabase
+			.from('habit_entries')
+			.select('date')
+			.eq('user_id', userId)
+			.eq('completed', true);
+		
+		if (allEntries) {
+			const uniqueDays = new Set(allEntries.map(e => e.date));
+			streak = uniqueDays.size;
+		}
+	}
+	
+	onMount(() => {
+		loadData();
+	});
 </script>
 
 <!-- Zen Progress Circle -->
@@ -84,52 +163,55 @@
 	</div>
 </div>
 
-<!-- Add Button -->
-<div class="add-section">
-	<button class="add-btn">
-		<span>+</span>
-		<span>Add New Habit</span>
-	</button>
+<!-- Daily Verse -->
+<div class="verse-card">
+	<div class="verse-text">"{currentVerse}"</div>
+	<div class="verse-ref">- {verseRef}</div>
 </div>
 
-<!-- Quote Section -->
-<div class="quote-section">
-	<p class="quote-text">{currentVerse}</p>
+<!-- Quick Access -->
+<div class="quick-access">
+	<a href="/analytics" class="quick-btn">
+		📊 Journal
+	</a>
+	<a href="/settings" class="quick-btn">
+		⚙️ Settings
+	</a>
 </div>
 
 <style>
 	.zen-progress {
 		display: flex;
-		justify-content: center;
-		margin-bottom: 40px;
+		flex-direction: column;
+		align-items: center;
+		padding: 40px 0 30px;
 		position: relative;
 	}
-
+	
 	.zen-circle {
-		width: 200px;
-		height: 200px;
 		position: relative;
 	}
-
+	
 	.progress-ring {
 		transform: rotate(-90deg);
 	}
-
+	
 	.progress-ring-bg {
 		fill: none;
 		stroke: var(--stone);
 		stroke-width: 8;
 	}
-
+	
 	.progress-ring-fill {
 		fill: none;
 		stroke: var(--moss);
 		stroke-width: 8;
 		stroke-linecap: round;
 		stroke-dasharray: 535;
+		stroke-dashoffset: 535;
 		transition: stroke-dashoffset 0.5s ease;
 	}
-
+	
 	.zen-content {
 		position: absolute;
 		top: 50%;
@@ -137,174 +219,161 @@
 		transform: translate(-50%, -50%);
 		text-align: center;
 	}
-
+	
 	.zen-number {
 		font-family: 'Noto Serif JP', serif;
-		font-size: 42px;
-		font-weight: 400;
+		font-size: 64px;
+		font-weight: 300;
 		color: var(--moss);
 		line-height: 1;
 	}
-
+	
 	.zen-total {
-		font-size: 18px;
-		color: var(--ink-light);
+		font-size: 28px;
+		opacity: 0.5;
 	}
-
+	
 	.zen-label {
-		font-size: 12px;
+		font-family: 'Noto Sans JP', sans-serif;
+		font-size: 11px;
+		letter-spacing: 3px;
+		text-transform: uppercase;
 		color: var(--ink-light);
-		letter-spacing: 2px;
-		margin-top: 4px;
+		margin-top: 8px;
 	}
-
+	
 	.pebbles {
-		position: absolute;
-		bottom: -10px;
 		display: flex;
 		gap: 12px;
+		margin-top: 30px;
 	}
-
+	
 	.pebble {
-		width: 16px;
-		height: 12px;
-		background: var(--stone);
-		border-radius: 50%;
-	}
-
-	.pebble:nth-child(2) {
 		width: 12px;
-		height: 10px;
+		height: 12px;
 		background: var(--moss-light);
+		border-radius: 50%;
+		opacity: 0.6;
 	}
-
-	.pebble:nth-child(3) {
-		width: 10px;
-		height: 8px;
-		background: var(--water);
-	}
-
+	
 	.streak-card {
-		background: linear-gradient(135deg, var(--moss) 0%, var(--bamboo) 100%);
-		border-radius: 8px;
-		padding: 24px;
-		color: white;
+		background: white;
+		border: 1px solid var(--stone);
+		border-radius: 16px;
+		padding: 30px;
 		text-align: center;
-		margin-bottom: 40px;
-		position: relative;
-		overflow: hidden;
-		max-width: 600px;
-		margin-left: auto;
-		margin-right: auto;
+		margin: 0 20px 30px;
+		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
 	}
-
+	
 	.streak-label {
-		font-size: 12px;
+		font-family: 'Noto Sans JP', sans-serif;
+		font-size: 11px;
 		letter-spacing: 2px;
-		opacity: 0.9;
-		margin-bottom: 8px;
+		text-transform: uppercase;
+		color: var(--ink-light);
 	}
-
+	
 	.streak-number {
 		font-family: 'Noto Serif JP', serif;
-		font-size: 42px;
-		font-weight: 400;
-		margin-bottom: 4px;
+		font-size: 48px;
+		font-weight: 300;
+		color: var(--moss);
+		margin: 10px 0;
 	}
-
+	
 	.streak-text {
-		font-size: 14px;
-		opacity: 0.9;
+		font-family: 'Noto Sans JP', sans-serif;
+		font-size: 13px;
+		color: var(--ink-light);
+		font-style: italic;
 	}
-
+	
 	.section {
-		margin-bottom: 32px;
+		padding: 0 20px;
+		margin-bottom: 30px;
 	}
-
+	
 	.section-header {
 		display: flex;
 		align-items: center;
-		gap: 12px;
+		gap: 15px;
 		margin-bottom: 20px;
 	}
-
-	.section-line {
-		flex: 1;
-		height: 1px;
-		background: var(--stone);
-	}
-
+	
 	.section-title {
+		font-family: 'Noto Sans JP', sans-serif;
 		font-size: 11px;
-		color: var(--moss);
-		letter-spacing: 4px;
+		letter-spacing: 2px;
 		text-transform: uppercase;
-		font-weight: 400;
+		color: var(--ink-light);
+		white-space: nowrap;
 	}
-
+	
+	.section-line {
+		height: 1px;
+		background: linear-gradient(90deg, var(--stone) 0%, transparent 100%);
+		flex: 1;
+	}
+	
 	.habits-list {
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
-		max-width: 600px;
-		margin: 0 auto;
 	}
-
+	
 	.habit-card {
-		background: white;
-		border-radius: 8px;
-		padding: 18px 20px;
 		display: flex;
 		align-items: center;
 		gap: 16px;
+		background: white;
+		border: 1px solid var(--stone);
+		border-radius: 16px;
+		padding: 20px;
+		transition: all 0.3s ease;
 		cursor: pointer;
-		transition: all 0.2s;
-		box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-		border-left: 4px solid transparent;
 	}
-
+	
 	.habit-card:hover {
-		transform: translateX(4px);
-		box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+		border-color: var(--moss);
+		box-shadow: 0 4px 20px rgba(139, 157, 131, 0.1);
 	}
-
+	
 	.habit-card.completed {
-		background: linear-gradient(90deg, var(--moss-light) 0%, white 100%);
-		border-left-color: var(--moss);
+		background: linear-gradient(135deg, rgba(139, 157, 131, 0.08) 0%, rgba(197, 212, 189, 0.08) 100%);
+		border-color: var(--moss-light);
 	}
-
+	
 	.habit-icon {
-		width: 44px;
-		height: 44px;
-		border-radius: 50%;
+		width: 48px;
+		height: 48px;
+		border-radius: 12px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-size: 20px;
+		font-size: 24px;
 		flex-shrink: 0;
 	}
-
+	
 	.habit-content {
 		flex: 1;
 	}
-
+	
 	.habit-name {
-		font-weight: 500;
-		font-size: 16px;
-		margin-bottom: 4px;
+		font-family: 'Noto Serif JP', serif;
+		font-size: 18px;
 		color: var(--ink);
+		margin-bottom: 4px;
 	}
-
-	.habit-card.completed .habit-name {
-		color: var(--bamboo);
-	}
-
+	
 	.habit-category {
+		font-family: 'Noto Sans JP', sans-serif;
 		font-size: 11px;
-		color: var(--ink-light);
 		letter-spacing: 1px;
+		text-transform: uppercase;
+		color: var(--ink-light);
 	}
-
+	
 	.habit-enso {
 		width: 28px;
 		height: 28px;
@@ -313,98 +382,65 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		color: white;
-		transition: all 0.2s;
+		color: var(--moss);
+		transition: all 0.3s ease;
 	}
-
+	
 	.habit-card.completed .habit-enso {
 		background: var(--moss);
 		border-color: var(--moss);
+		color: white;
 	}
-
-	.add-section {
-		margin-bottom: 32px;
-		max-width: 600px;
-		margin-left: auto;
-		margin-right: auto;
-	}
-
-	.add-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 100%;
-		padding: 16px;
-		border: 1px dashed var(--stone);
-		background: transparent;
-		color: var(--ink-light);
-		font-size: 14px;
-		cursor: pointer;
-		transition: all 0.2s;
-		gap: 8px;
-		border-radius: 8px;
-	}
-
-	.add-btn:hover {
-		border-color: var(--moss);
-		color: var(--moss);
-	}
-
-	.quote-section {
-		background: white;
-		border-radius: 8px;
-		padding: 28px;
+	
+	.verse-card {
+		background: linear-gradient(135deg, rgba(139, 157, 131, 0.06) 0%, rgba(168, 200, 200, 0.06) 100%);
+		border: 1px solid var(--moss-light);
+		border-radius: 16px;
+		padding: 25px 30px;
+		margin: 0 20px 30px;
 		text-align: center;
-		position: relative;
-		margin-bottom: 40px;
-		box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-		max-width: 600px;
-		margin-left: auto;
-		margin-right: auto;
 	}
-
-	.quote-section::before,
-	.quote-section::after {
-		content: '"';
-		position: absolute;
-		font-family: 'Noto Serif JP', serif;
-		font-size: 48px;
-		color: var(--moss-light);
-		opacity: 0.5;
-	}
-
-	.quote-section::before {
-		top: 10px;
-		left: 16px;
-	}
-
-	.quote-section::after {
-		content: '"';
-		bottom: 10px;
-		right: 16px;
-	}
-
-	.quote-text {
+	
+	.verse-text {
 		font-family: 'Noto Serif JP', serif;
 		font-size: 16px;
+		font-style: italic;
 		color: var(--ink);
-		line-height: 1.8;
-		padding: 0 20px;
+		line-height: 1.6;
+		margin-bottom: 12px;
 	}
-
-	@media (max-width: 768px) {
-		.habit-card {
-			padding: 16px;
-		}
-
-		.habit-icon {
-			width: 40px;
-			height: 40px;
-			font-size: 18px;
-		}
-
-		.habit-name {
-			font-size: 15px;
-		}
+	
+	.verse-ref {
+		font-family: 'Noto Sans JP', sans-serif;
+		font-size: 12px;
+		letter-spacing: 1px;
+		color: var(--moss);
+	}
+	
+	.quick-access {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 15px;
+		padding: 0 20px 40px;
+	}
+	
+	.quick-btn {
+		display: block;
+		text-align: center;
+		padding: 18px;
+		background: white;
+		border: 1px solid var(--stone);
+		border-radius: 16px;
+		font-family: 'Noto Sans JP', sans-serif;
+		font-size: 13px;
+		letter-spacing: 1px;
+		text-decoration: none;
+		color: var(--ink);
+		transition: all 0.3s ease;
+	}
+	
+	.quick-btn:hover {
+		border-color: var(--moss);
+		color: var(--moss);
 	}
 </style>
