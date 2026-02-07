@@ -10,7 +10,15 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      exclude: ['node_modules/', '**/*.d.ts', '**/*.test.ts', '**/*.spec.ts', 'src/app.html'],
+      exclude: [
+        'node_modules/',
+        '**/*.d.ts',
+        '**/*.test.ts',
+        '**/*.spec.ts',
+        'src/app.html',
+        '.svelte-kit/**',
+        'coverage/**',
+      ],
     },
   },
 });
