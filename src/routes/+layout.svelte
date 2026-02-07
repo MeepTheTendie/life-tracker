@@ -9,13 +9,21 @@
 		{ href: "/analytics", icon: BookOpen, label: "Journal" },
 		{ href: "/settings", icon: Bath, label: "Settings" },
 	];
+
+	const today = new Date();
+	const formattedDate = today.toLocaleDateString('en-US', {
+		weekday: 'long',
+		year: 'numeric',
+		month: 'long',
+		day: 'numeric'
+	});
 </script>
 
 <div class="app-container">
 	<header class="header">
 		<div class="header-line"></div>
 		<div class="greeting">今日</div>
-		<div class="date">Wednesday, February 6</div>
+		<div class="date">{formattedDate}</div>
 	</header>
 
 	<main class="main">
