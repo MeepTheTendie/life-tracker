@@ -8,3 +8,4 @@ dist
 .vercel
 convex/_generated
 .env*.local
+.vercel
